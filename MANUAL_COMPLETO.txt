@@ -1,0 +1,188 @@
+==============================================================================
+                  MANUAL D'USUARI: BICING WRAPPED (NO OFICIAL)
+==============================================================================
+
+1. INTRODUCCIÓ
+------------------------------------------------------------------------------
+Bicing Wrapped és una eina de visualització de dades dissenyada per als 
+usuaris del servei de Bicing de Barcelona. A diferència d'altres plataformes 
+de "Wrapped" (com Spotify), Bicing no ofereix un resum anual oficial detallat.
+
+Aquesta aplicació permet a qualsevol usuari agafar les seves dades brutes 
+exportades des del web de Smou i convertir-les instantàniament en un panell de 
+control visual, interactiu i detallat sobre els seus hàbits de transport.
+
+**Filosofia de Privadesa:**
+L'aplicació funciona enterament al navegador de l'usuari (Client-Side). 
+Això significa que els fitxers Excel/CSV que puges MAI s'envien a cap 
+servidor extern. El processament ocorre a la memòria del teu dispositiu, 
+garantint privadesa total sobre els teus moviments.
+
+==============================================================================
+
+2. OBTENCIÓ DE DADES (PAS A PAS)
+------------------------------------------------------------------------------
+Per utilitzar l'aplicació, necessites les dades brutes. Smou no té una API 
+pública, així que hem d'utilitzar la seva exportació manual.
+
+1. Accedeix al teu compte:
+   Entra a https://www.smou.cat/ i inicia sessió a la teva Zona d'Usuari.
+
+2. Navegació:
+   Al menú lateral esquerre, busca l'apartat "Consum".
+   Dins de Consum, assegura't de clicar a la pestanya superior "Activitat". 
+   Per defecte sol sortir "Resum", que no ens serveix (només dona totals).
+
+3. Filtrat (CRÍTIC):
+   A la dreta veuràs un botó o desplegable de "Filtres".
+   - Desmarca tots els serveis excepte "Bicing".
+   - Selecciona el rang de dates. Recomanem agafar anys sencers (ex: 
+     del 01/01/2023 al 31/12/2023) o tot el teu historial històric.
+   - Prem "Cercar".
+
+4. Exportació:
+   Un cop aparegui la llista de trajectes en pantalla, busca una icona petita 
+   d'Excel (XLS) situada generalment a la dreta, a sobre o a sota de la taula.
+   IMPORTANT: No descarreguis el PDF. El PDF no conté dades estructurades 
+   llegibles per l'aplicació. Necessitem l'Excel.
+
+5. Múltiples Fitxers:
+   Si tens molts trajectes, Smou a vegades pagina els resultats o limita 
+   l'exportació. Pots descarregar diversos fitxers (ex: "2022.xls", "2023.xls").
+   L'aplicació permet pujar-los tots de cop i s'encarrega d'unir-los i 
+   eliminar duplicats automàticament.
+
+==============================================================================
+
+3. FUNCIONAMENT DE LA INTERFÍCIE
+------------------------------------------------------------------------------
+
+A. LA BARRA DE FILTRES SUPERIOR
+-------------------------------
+Un cop carregades les dades, veuràs una barra superior amb controls:
+
+- Botons d'Any (NOU): 
+  Si les teves dades abasten diversos anys, apareixeran botons com [2023] [2024] [Tot].
+  En fer clic, l'aplicació filtra instantàniament totes les mètriques i 
+  gràfics per mostrar només aquell període. El botó actiu s'il·lumina en vermell.
+
+- Selectors de Data (Des de - Fins a):
+  Permeten un ajust fi. Pots analitzar, per exemple, només un mes d'estiu 
+  o una setmana específica.
+
+B. PESTANYA 1: WRAPPED (RESUM EXECUTIU)
+---------------------------------------
+Aquesta pestanya està dissenyada per ser visual i compartible. Conté els "grans números".
+
+1. Targetes Superiors (KPIs):
+   - Total Trajectes: Nombre absolut de viatges en el període seleccionat.
+   - Temps total: Suma de minuts passats pedalant.
+   - Racha màxima: El nombre màxim de dies CONSECUTIUS que has usat el Bicing 
+     sense fallar ni un sol dia.
+   - Bicis diferents: Quantes bicicletes úniques has usat.
+
+2. Constància Anual (Year Heatmap):
+   Un gràfic estil "GitHub" que mostra tots els dies de l'any.
+   - Quadrat gris: Sense viatges.
+   - Quadrat vermell clar a fosc: De pocs a molts viatges aquell dia.
+   Permet veure d'un cop d'ull si ets usuari de cap de setmana, de diari, o si 
+   vas deixar d'usar-lo per vacances.
+
+3. Mecànica vs Elèctrica:
+   Mostra el percentatge d'ús de cada tipus.
+   - Lògica interna: L'app detecta bicis elèctriques si el cost del viatge és > 0 
+     (en tarifa plana estàndard) o basant-se en llistats d'IDs coneguts.
+
+4. Economia:
+   - Extres acumulats: Els diners pagats per excessos de 30 min o ús d'elèctriques.
+   - Preu real per viatge: És el càlcul més honest. Suma la subscripció anual 
+     (ex: 50€) + els extres, dividit pel nombre total de viatges.
+     Pots canviar la tarifa al desplegable per ajustar el càlcul a la teva realitat.
+
+5. Impacte Ambiental i Estimacions:
+   - CO2 Estalviat: Estimació basada en 0.12kg de CO2 per km recorregut.
+   - Distància estimada: Donat que Smou no dona els km exactes, s'estima assumint 
+     una velocitat mitjana urbana conservadora de 12km/h (aprox 5 min = 1 km).
+
+C. PESTANYA 2: HÀBITS (EVOLUCIÓ)
+--------------------------------
+Aquí és on es veuen les tendències i el comportament.
+
+**FILTRE PER TIPUS DE BICI**
+A la part superior trobaràs tres botons: [Tot] [Elèctriques] [Mecàniques].
+En prémer-los, tots els gràfics d'aquesta pestanya (Evolució, Estacionalitat, Hores)
+es recalcularan instantàniament usant només les dades seleccionades. 
+Això permet respondre preguntes com:
+- "Uso més l'elèctrica als matins per no suar?" 
+- "A l'estiu agafo més la mecànica?".
+
+1. Gràfic d'Àrea (Evolució Temporal):
+   Permet agrupar les dades per:
+   - DIA: Per veure pics exactes.
+   - SETMANA: Ideal per veure tendències a mig termini sense tant "soroll".
+   - MES: Per veure l'evolució al llarg dels anys.
+   - ANY: Comparativa anual directa.
+
+2. Estacionalitat (Mesos):
+   Un histograma que suma tots els viatges de Gener, tots els de Febrer, etc., 
+   independentment de l'any. Objectiu: Descobrir si ets un usuari de "bon temps".
+
+3. Mapa de Calor Setmanal (Heatmap):
+   Una quadrícula de 7 dies x 24 hores. El color vermell intens indica els teus 
+   moments de màxim ús (ex: "Dimarts a les 8:00"). És l'empremta digital de la teva rutina.
+
+4. Hores més actives i Dies preferits:
+   Estadístiques agregades per saber quan et mous més.
+
+D. PESTANYA 3: FLOTA (BICIS)
+----------------------------
+Una anàlisi profunda de les màquines que has fet servir.
+
+1. Cercador i Mapa de Cobertura:
+   - Pots buscar una bici per ID (ex: "1234") per veure el teu historial amb ella.
+   - El "Mapa de Cobertura" és una matriu visual que et mostra quins rangs d'IDs 
+     has "desbloquejat".
+
+2. Histograma de Sèries:
+   Et mostra quines generacions de bicis uses més (IDs baixos vs IDs nous).
+
+3. Rànquings:
+   - Les teves preferides: Les bicis que més vegades t'han tocat.
+   - Top Noves / Top Antigues: Curiositats sobre la flota.
+
+4. Fitxa de Bici (Detall):
+   Si cliques en qualsevol bici, s'obre una fitxa detallada amb:
+   - Generació estimada (Mecànica, Elèctrica nova, etc.).
+   - Ritme mitjà comparat amb la teva mitjana global (més ràpida/lenta).
+   - Moment del dia preferit amb aquella bici.
+   - Llistat de tots els viatges fets amb ella.
+
+==============================================================================
+
+4. DETALLS TÈCNICS I CÀLCULS
+------------------------------------------------------------------------------
+
+A. LÒGICA DE DEDUPLICACIÓ
+En pujar múltiples fitxers, l'aplicació usa el "Número de liquidació" (ID únic de Smou) 
+per identificar duplicats. Si Smou no proporciona ID en alguna fila, l'app genera 
+un ID compost (Data + Hora + ID Bici) per assegurar que no es compten viatges dobles.
+
+B. TARIFES SUPORTADES
+- Tarifa Plana (50€/any): Usada per defecte.
+- Tarifa d'Ús (35€/any): Per a usuaris ocasionals.
+- Tarifes bonificades: Opcions per a usuaris amb abonaments de transport combinats.
+
+==============================================================================
+
+5. RESOLUCIÓ DE PROBLEMES
+------------------------------------------------------------------------------
+- "No apareixen dades": Assegura't d'haver descarregat el fitxer EXCEL (.xls) i no el PDF.
+- "Data incorrecta": Verifica que el teu ordinador tingui la data/hora ben configurada, 
+  ja que els càlculs són locals.
+- "Error de lectura": Si has editat l'Excel manualment, prova a baixar-lo de nou de 
+  Smou sense tocar-lo.
+
+==============================================================================
+Creat amb ❤️ per a la comunitat ciclista de Barcelona.
+Software de Codi Obert (No Oficial).
+==============================================================================
