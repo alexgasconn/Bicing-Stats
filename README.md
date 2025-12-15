@@ -17,6 +17,7 @@ Inclou:
 *   ⚡ **Mecànica vs Elèctrica:** Analitza quin tipus de bici fas servir més.
 *   🕒 **Anàlisi d'hàbits:** Hores punta, dies preferits, estacionalitat mensual. **(Nou!)** Filtra per tipus de bici per veure com canvien els teus hàbits.
 *   🚲 **Flota:** Descobreix quines bicis has repetit més, cerca per ID i veu el teu "àlbum de cromos" de bicicletes.
+*   📋 **Llistat i Exportació:** Taula detallada amb tots els viatges, alertes per excessos de temps (>30min) i exportació a Excel net.
 *   💰 **Calculadora de costos:** Quant et costa realment cada viatge (incloent la quota anual i extres).
 
 ## 🔒 Privadesa

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { BicingTrip, BicingStats, BikeStat, DayStat, DestinyBike } from '../types';
+import { BicingTrip, BicingStats, BikeStat, DayStat, DestinyBike, TariffRules } from '../types';
 import bicingIds from '../data/bicing_ids';
 
 // Helpers
@@ -16,25 +16,68 @@ const getLocalYM = (d: Date) => {
   return `${y}-${m}`;
 };
 
-const formatDateCA = (date: Date) => {
-  return date.toLocaleDateString('ca-ES', { day: 'numeric', month: 'long', year: 'numeric' });
-};
-
 const formatShortDate = (date: Date) => {
   return date.toLocaleDateString('ca-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
-interface TariffInfo {
-    price: number;
-    name: string;
-}
+const formatDateCA = (date: Date) => {
+  return date.toLocaleDateString('ca-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
+// --- LOGIC: DETECT TYPE ---
+const detectBikeType = (trip: BicingTrip, mecSet: Set<string>, elecSet: Set<string>): 'Elèctrica' | 'Mecànica' => {
+    const cleanId = trip.bikeId.replace(/\D/g, '');
+    const idNum = parseInt(cleanId) || 0;
+
+    // 1. Strict ID Check
+    if (elecSet.has(cleanId)) return 'Elèctrica';
+    if (mecSet.has(cleanId)) return 'Mecànica';
+
+    // 2. User Heuristic: "Si té import i menys de 30 min -> Elèctrica"
+    // Note: In Tarifa d'Ús, mechanical also costs money. 
+    // We assume if cost > 0.35 (base mech price) and short duration, it's definitively electric.
+    // Or if cost > 0 and duration < 30 (User Rule).
+    if (trip.cost > 0 && trip.durationMinutes <= 30) return 'Elèctrica';
+
+    // 3. ID Ranges Fallback
+    if (idNum >= 3000 && idNum < 4000) return 'Elèctrica'; // Classic Electric
+    if (idNum >= 8000) return 'Elèctrica'; // New Electric
+    
+    return 'Mecànica';
+};
+
+// --- LOGIC: CALCULATE COST ---
+const calculateTripCost = (duration: number, type: 'Elèctrica' | 'Mecànica', tariff: TariffRules): number => {
+    let cost = 0;
+    const isElec = type === 'Elèctrica';
+
+    // 1. First 30 mins
+    cost += isElec ? tariff.baseElec : tariff.baseMec;
+
+    // 2. From 30 min to 2 hours (120 min) -> Fractions of 30 min
+    if (duration > 30) {
+        const excessMinutes = Math.min(duration, 120) - 30;
+        // Example: 31 min -> 1 minute excess -> 1 block. 60 min -> 30 excess -> 1 block.
+        const blocks30 = Math.ceil(excessMinutes / 30);
+        cost += blocks30 * (isElec ? tariff.midElec : tariff.midMec);
+    }
+
+    // 3. From 2 hours onwards -> Fractions of 60 min
+    if (duration > 120) {
+        const excessMinutes = duration - 120;
+        const blocks60 = Math.ceil(excessMinutes / 60);
+        cost += blocks60 * tariff.maxPrice;
+    }
+
+    return cost;
+};
 
 export const useBicingStats = (
     trips: BicingTrip[], 
     filterStart: string, 
     filterEnd: string,
-    tariff: TariffInfo,
-    bikeType: 'all' | 'mecanica' | 'electrica' = 'all'
+    tariff: TariffRules,
+    bikeTypeFilter: 'all' | 'mecanica' | 'electrica' = 'all'
 ): BicingStats & { 
     idHistogram: { range: string; count: number; fullRange: string; binStart: number }[];
     generationStats: { name: string; count: number; color: string }[];
@@ -56,7 +99,7 @@ export const useBicingStats = (
         const filteredTrips = trips.filter(t => t.startDate >= start && t.startDate <= end);
 
         // 2. Initialize counters
-        let totalTrips = 0; // Calculated in loop now due to type filter
+        let totalTrips = 0; 
         
         // Aggregation Containers
         const bikeUsage: Record<string, { count: number, minutes: number, usageDates: Date[], trips: BicingTrip[] }> = {};
@@ -76,7 +119,7 @@ export const useBicingStats = (
         let maxBikeId = 0;
         let minBikeId = 999999;
         
-        let adjustedTotalCost = 0;
+        let calculatedTotalCost = 0;
         let totalMinutes = 0;
 
         // Histograms
@@ -92,7 +135,6 @@ export const useBicingStats = (
         const dayNames = ['Diumenge', 'Dilluns', 'Dimarts', 'Dimecres', 'Dijous', 'Divendres', 'Dissabte'];
         const monthNames = ['Gen', 'Feb', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Oct', 'Nov', 'Des'];
         
-        // Temp array to store trips that pass the type filter for "Longest Trips" etc
         const finalProcessedTrips: BicingTrip[] = [];
     
         // 3. Main Loop
@@ -100,41 +142,24 @@ export const useBicingStats = (
             const bikeIdClean = t.bikeId.replace(/\D/g, '');
             const idNum = parseInt(bikeIdClean) || 0;
 
-            // --- TYPE DETECTION LOGIC ---
-            // Priority: 1. JSON List, 2. Cost > 0, 3. ID Heuristic
-            let isElectric = false;
-            
-            if (elecSet.has(bikeIdClean)) {
-                isElectric = true;
-            } else if (mecSet.has(bikeIdClean)) {
-                isElectric = false;
-            } else {
-                // Fallback Logic
-                if (t.cost > 0) isElectric = true;
-                else if (idNum >= 3000 && idNum < 4000) isElectric = true; // Classic range for old electrics
-                else if (idNum >= 8000) isElectric = true; // New fleet electrics mostly high IDs
-                else isElectric = false; // Default to mechanical
-            }
+            // --- TYPE DETECTION ---
+            const typeStr = detectBikeType(t, mecSet, elecSet);
+            const isElectric = typeStr === 'Elèctrica';
 
             // --- FILTER BY TYPE ---
-            if (bikeType === 'electrica' && !isElectric) return;
-            if (bikeType === 'mecanica' && isElectric) return;
+            if (bikeTypeFilter === 'electrica' && !isElectric) return;
+            if (bikeTypeFilter === 'mecanica' && isElectric) return;
             
-            // If we are here, the trip is valid for the current view
+            // Valid trip
             totalTrips++;
             finalProcessedTrips.push(t);
             totalMinutes += t.durationMinutes;
 
-            // --- COST ADJUSTMENT LOGIC ---
-            // If it's electric and cost is 0, assumes 0.35€ (per user request)
-            let tripCost = t.cost;
-            if (isElectric) {
-                electricCount++;
-                if (tripCost === 0) tripCost = 0.35; 
-            } else {
-                mechanicalCount++;
-            }
-            adjustedTotalCost += tripCost;
+            // --- COST CALCULATION ---
+            const realCost = calculateTripCost(t.durationMinutes, typeStr, tariff);
+            calculatedTotalCost += realCost;
+
+            if (isElectric) electricCount++; else mechanicalCount++;
 
             const year = t.startDate.getFullYear();
             uniqueYears.add(year);
@@ -151,7 +176,7 @@ export const useBicingStats = (
                 const bin = Math.floor(idNum / HISTOGRAM_BIN_SIZE) * HISTOGRAM_BIN_SIZE;
                 idHistogramMap.set(bin, (idHistogramMap.get(bin) || 0) + 1);
 
-                // Generation Logic Updated with strict detection
+                // Generation Logic
                 if (isElectric) {
                     if (idNum < 8000) genElecOld++;
                     else genElecNew++;
@@ -167,10 +192,7 @@ export const useBicingStats = (
             bikeUsage[t.bikeId].count++;
             bikeUsage[t.bikeId].minutes += t.durationMinutes;
             bikeUsage[t.bikeId].usageDates.push(t.startDate);
-            bikeUsage[t.bikeId].trips.push({
-                ...t,
-                cost: tripCost // Store the adjusted cost in the bike history too
-            });
+            bikeUsage[t.bikeId].trips.push({ ...t, cost: realCost }); // Store calculated cost
     
             const d = t.startDate;
             const hour = d.getHours();
@@ -205,7 +227,7 @@ export const useBicingStats = (
         
         if (minBikeId === 999999) minBikeId = 0;
     
-        // 4. Chart Data Filling
+        // 4. Chart Data Filling (Same as before...)
         const tripsByDate = [];
         const currentD = new Date(sY, sM - 1, sD);
         const endD = new Date(eY, eM - 1, eD);
@@ -222,8 +244,7 @@ export const useBicingStats = (
         }
     
         const tripsByMonth = [];
-        const avgIdByMonthRaw = []; // Temporary array
-
+        const avgIdByMonthRaw = []; 
         const currentM = new Date(sY, sM - 1, 1);
         const endM = new Date(eY, eM - 1, 1);
         
@@ -244,13 +265,9 @@ export const useBicingStats = (
            currentM.setMonth(currentM.getMonth() + 1);
         }
 
-        // Filter out months with 0 trips for the Evolution chart to avoid drop-to-zero lines
         const avgIdByMonth = avgIdByMonthRaw.filter(d => d.count > 0);
-    
         const tripsByWeek = Object.keys(weeklyCounts).sort().map(w => ({ week: w, label: w, count: weeklyCounts[w] }));
-        const tripsByYear = Object.entries(yearlyCounts)
-            .map(([year, count]) => ({ year, count }))
-            .sort((a, b) => parseInt(a.year) - parseInt(b.year));
+        const tripsByYear = Object.entries(yearlyCounts).map(([year, count]) => ({ year, count })).sort((a, b) => parseInt(a.year) - parseInt(b.year));
         const tripsByMonthName = monthNames.map((name, i) => ({ month: name, count: monthCounts[i] }));
     
         // 5. Bike Analysis
@@ -261,7 +278,7 @@ export const useBicingStats = (
              const idNum = parseInt(id.replace(/\D/g, '')) || 0;
              let range: 'old' | 'mid' | 'new' = 'mid';
              if (idNum < 3000) range = 'old';
-             if (idNum >= 8000) range = 'new'; // Updated range logic
+             if (idNum >= 8000) range = 'new'; 
 
              const dates = data.usageDates.sort((a, b) => a.getTime() - b.getTime());
 
@@ -270,7 +287,7 @@ export const useBicingStats = (
                  count: data.count,
                  minutes: data.minutes,
                  usageDates: dates,
-                 trips: data.trips.sort((a,b) => b.startDate.getTime() - a.startDate.getTime()), // sort trips desc
+                 trips: data.trips.sort((a,b) => b.startDate.getTime() - a.startDate.getTime()), 
                  firstUsed: dates[0],
                  lastUsed: dates[dates.length - 1],
                  range
@@ -303,11 +320,9 @@ export const useBicingStats = (
              }
         });
 
-        // Sort by Count (Popularity)
+        // Sorting
         const topBikes = [...bikeList].sort((a, b) => b.count - a.count).slice(0, 50);
-        // Sort by ID (to return all)
         const allBikes = [...bikeList].sort((a, b) => (parseInt(a.id)||0) - (parseInt(b.id)||0));
-
         const sortedDestinyBikes = destinyBikes.sort((a, b) => b.gapDays - a.gapDays).slice(0, 20);
         const uniqueBikes = bikeList.length;
         const repeatedBikes = bikeList.filter(b => b.count > 1).length;
@@ -326,11 +341,7 @@ export const useBicingStats = (
         });
     
         const orderedDays = ['Dilluns', 'Dimarts', 'Dimecres', 'Dijous', 'Divendres', 'Dissabte', 'Diumenge'];
-        const tripsByDay = orderedDays.map(day => ({
-          day: day.substring(0, 3),
-          fullDay: day,
-          count: dayNameCounts[day] || 0
-        }));
+        const tripsByDay = orderedDays.map(day => ({ day: day.substring(0, 3), fullDay: day, count: dayNameCounts[day] || 0 }));
     
         const uniqueDates = Object.keys(dailyCounts).sort();
         let maxStreak = 0;
@@ -360,6 +371,7 @@ export const useBicingStats = (
         const longestTrips = [...finalProcessedTrips]
           .sort((a, b) => b.durationMinutes - a.durationMinutes).slice(0, 50);
     
+        // Financials
         const subscriptionBase = tariff.price;
         const yearsPaid = uniqueYears.size || 1; 
         const totalSubscriptionCost = subscriptionBase * yearsPaid;
@@ -368,10 +380,8 @@ export const useBicingStats = (
         const estimatedDistanceKm = totalMinutes / 5;
         const co2SavedKg = estimatedDistanceKm * 0.12;
         
-        // Use ADJUSTED cost for the final calculation
-        const avgCostPerTripIncludingSub = totalTrips > 0 ? (adjustedTotalCost + totalSubscriptionCost) / totalTrips : 0;
+        const avgCostPerTripIncludingSub = totalTrips > 0 ? (calculatedTotalCost + totalSubscriptionCost) / totalTrips : 0;
         
-        // Prepare ID Histogram Data
         const idHistogram = Array.from(idHistogramMap.entries())
             .map(([bin, count]) => ({
                 range: `${(bin/1000).toFixed(1)}k`, 
@@ -381,83 +391,30 @@ export const useBicingStats = (
             }))
             .sort((a,b) => a.binStart - b.binStart);
 
-        // Prepare Generation Stats
         const generationStats = [
             { name: "Mecàniques (Originals)", count: genMec, color: "#991b1b" }, 
             { name: "Elèctriques (Clàssiques)", count: genElecOld, color: "#ca8a04" }, 
             { name: "Elèctriques (Nova Flota)", count: genElecNew, color: "#16a34a" }, 
         ];
 
-        // Achievements Logic
         const achievements = [
-            { 
-                id: 'explorer', 
-                icon: '🌍', 
-                title: 'Explorador', 
-                desc: 'Utilitzar 50 bicis diferents', 
-                unlocked: uniqueBikes >= 50,
-                progress: `${Math.min(uniqueBikes, 50)}/50`
-            },
-            { 
-                id: 'veteran', 
-                icon: '🦖', 
-                title: 'Veterà', 
-                desc: 'Trobar una bici < ID 1000', 
-                unlocked: minBikeId > 0 && minBikeId < 1000,
-                progress: minBikeId > 0 && minBikeId < 1000 ? 'Trobat' : 'Pendent'
-            },
-            { 
-                id: 'futurist', 
-                icon: '⚡', 
-                title: 'Futurista', 
-                desc: 'Provar la nova flota (IDs +8000)', 
-                unlocked: genElecNew > 0,
-                progress: genElecNew > 0 ? 'Desbloquejat' : 'Pendent'
-            },
-            { 
-                id: 'loyal', 
-                icon: '🐕', 
-                title: 'Fidel', 
-                desc: 'Repetir bici 10+ vegades', 
-                unlocked: repeatedBikes > 10,
-                progress: `${Math.min(repeatedBikes, 10)}/10`
-            },
-            { 
-                id: 'marathon', 
-                icon: '🏃', 
-                title: 'Marató', 
-                desc: 'Un viatge > 45 minuts', 
-                unlocked: longestTrips.length > 0 && longestTrips[0].durationMinutes >= 45,
-                progress: longestTrips.length > 0 ? `${longestTrips[0].durationMinutes}m / 45m` : '0m'
-            },
-            { 
-                id: 'nightowl', 
-                icon: '🦉', 
-                title: 'Nocturn', 
-                desc: 'Viatjar de matinada (0-5h)', 
-                unlocked: tripsByHour.slice(0, 5).some(h => h.count > 0),
-                progress: tripsByHour.slice(0, 5).reduce((acc, curr) => acc + curr.count, 0) > 0 ? 'Sí' : 'Mai'
-            },
+            { id: 'explorer', icon: '🌍', title: 'Explorador', desc: 'Utilitzar 50 bicis diferents', unlocked: uniqueBikes >= 50, progress: `${Math.min(uniqueBikes, 50)}/50` },
+            { id: 'veteran', icon: '🦖', title: 'Veterà', desc: 'Trobar una bici < ID 1000', unlocked: minBikeId > 0 && minBikeId < 1000, progress: minBikeId > 0 && minBikeId < 1000 ? 'Trobat' : 'Pendent' },
+            { id: 'futurist', icon: '⚡', title: 'Futurista', desc: 'Provar la nova flota (IDs +8000)', unlocked: genElecNew > 0, progress: genElecNew > 0 ? 'Desbloquejat' : 'Pendent' },
+            { id: 'loyal', icon: '🐕', title: 'Fidel', desc: 'Repetir bici 10+ vegades', unlocked: repeatedBikes > 10, progress: `${Math.min(repeatedBikes, 10)}/10` },
+            { id: 'marathon', icon: '🏃', title: 'Marató', desc: 'Un viatge > 45 minuts', unlocked: longestTrips.length > 0 && longestTrips[0].durationMinutes >= 45, progress: longestTrips.length > 0 ? `${longestTrips[0].durationMinutes}m / 45m` : '0m' },
+            { id: 'nightowl', icon: '🦉', title: 'Nocturn', desc: 'Viatjar de matinada (0-5h)', unlocked: tripsByHour.slice(0, 5).some(h => h.count > 0), progress: tripsByHour.slice(0, 5).reduce((acc, curr) => acc + curr.count, 0) > 0 ? 'Sí' : 'Mai' },
         ];
 
         return {
           totalTrips, totalMinutes, 
-          totalCost: adjustedTotalCost, // Return the adjusted cost
+          totalCost: calculatedTotalCost,
           uniqueBikes, repeatedBikes, averageTime,
           estimatedDistanceKm, co2SavedKg, electricCount, mechanicalCount, avgCostPerTripIncludingSub,
-          topBikes, 
-          allBikes, 
-          busiestWeekday, busiestHour, tripsByHour, tripsByDay, tripsByMonthName,
+          topBikes, allBikes, busiestWeekday, busiestHour, tripsByHour, tripsByDay, tripsByMonthName,
           tripsByMonth, tripsByDate, tripsByWeek, tripsByYear, heatmap, longestStreak: maxStreak,
-          topDays, longestTrips,
-          destinyBikes: sortedDestinyBikes,
-          avgIdByMonth,
-          maxBikeId,
-          minBikeId,
-          // New Data
-          idHistogram,
-          generationStats,
-          achievements
+          topDays, longestTrips, destinyBikes: sortedDestinyBikes, avgIdByMonth, maxBikeId, minBikeId,
+          idHistogram, generationStats, achievements
         };
-      }, [trips, filterStart, filterEnd, tariff, bikeType]);
+      }, [trips, filterStart, filterEnd, tariff, bikeTypeFilter]);
 }

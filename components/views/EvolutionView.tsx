@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BicingTrip } from '../../types';
+import { BicingTrip, TariffRules } from '../../types';
 import { Charts } from '../Charts';
 import { Heatmap } from '../Heatmap';
 import { useBicingStats } from '../../hooks/useBicingStats';
@@ -10,11 +10,22 @@ interface EvolutionViewProps {
   endDate: string;
 }
 
+const DEFAULT_TARIFF: TariffRules = {
+  id: 'standard',
+  name: 'Standard',
+  price: 50,
+  baseMec: 0,
+  baseElec: 0.35,
+  midMec: 0.70,
+  midElec: 0.90,
+  maxPrice: 5.00
+};
+
 export const EvolutionView: React.FC<EvolutionViewProps> = ({ trips, startDate, endDate }) => {
   const [bikeFilter, setBikeFilter] = useState<'all' | 'mecanica' | 'electrica'>('all');
 
   // We calculate stats locally for this view to support the filter without affecting global stats
-  const stats = useBicingStats(trips, startDate, endDate, { name: 'Standard', price: 50 }, bikeFilter);
+  const stats = useBicingStats(trips, startDate, endDate, DEFAULT_TARIFF, bikeFilter);
 
   return (
     <div className="animate-in slide-in-from-bottom-4 fade-in duration-500 space-y-8">

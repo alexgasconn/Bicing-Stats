@@ -1,3 +1,4 @@
+
 ==============================================================================
                   MANUAL D'USUARI: BICING WRAPPED (NO OFICIAL)
 ==============================================================================
@@ -156,6 +157,28 @@ Una anàlisi profunda de les màquines que has fet servir.
    - Ritme mitjà comparat amb la teva mitjana global (més ràpida/lenta).
    - Moment del dia preferit amb aquella bici.
    - Llistat de tots els viatges fets amb ella.
+
+E. PESTANYA 4: LLISTAT DETALLAT (TAULA)
+---------------------------------------
+Accés directe a les dades brutes en format net i ordenable.
+
+1. Taula Interactiva:
+   Mostra cada viatge individualment amb:
+   - Data d'inici i Data de fi (separades).
+   - Durada en minuts: Si el trajecte supera els 30 minuts, veuràs una 
+     icona d'alerta (⚠️).
+   - ID de la bicicleta i tipus (Mecànica/Elèctrica).
+   - Cost imputat.
+
+2. Càlcul de Sobrecostos (Excés de 30 min):
+   L'aplicació detecta automàticament viatges de més de 30 minuts.
+   Encara que el fitxer original marqui 0€, la taula et marcarà un cost 
+   estimat de 0,33€ (la tarifa estàndard per excés de temps), per ajudar-te 
+   a entendre millor la despesa oculta.
+
+3. Exportació:
+   Botó verd "Exportar Excel" per baixar un fitxer .xlsx net amb les dades 
+   que estàs veient actualment a la pantalla, respectant els filtres de dates.
 
 ==============================================================================
 

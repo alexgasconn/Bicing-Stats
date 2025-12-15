@@ -1,3 +1,4 @@
+
 export interface RawCsvRow {
   [key: string]: string;
 }
@@ -10,6 +11,20 @@ export interface BicingTrip {
   durationMinutes: number;
   cost: number;
   service: string; 
+}
+
+export interface TariffRules {
+  id: string;
+  name: string;
+  price: number; // Annual fee
+  // 0-30 min
+  baseMec: number;
+  baseElec: number;
+  // 30min - 2h (per 30 min fraction)
+  midMec: number;
+  midElec: number;
+  // > 2h (per hour fraction)
+  maxPrice: number;
 }
 
 export interface BikeStat {
